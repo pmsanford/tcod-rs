@@ -6,3 +6,6 @@ authors = ["tomas@sedovic.cz", "arcnorj@gmail.com"]
 [lib]
 name = "tcod"
 path = "src/lib.rs"
+
+[dependencies.tcod-sys]
+path = "tcod-sys"
