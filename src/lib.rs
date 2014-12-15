@@ -664,8 +664,6 @@ bitflags! {
     }
 }
 
-impl Copy for FontFlags {}
-
 
 #[deriving(Copy, PartialEq, FromPrimitive, Show)]
 #[repr(C)]
@@ -1036,5 +1034,3 @@ bitflags! {
         const KEY_RELEASED = ffi::TCOD_KEY_RELEASED,
     }
 }
-
-impl Copy for KeyPressFlags {}
