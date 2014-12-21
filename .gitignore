@@ -26,3 +26,5 @@ watch.sh
 !/examples/assets/
 /Cargo.lock
 /tcod-sys/target/
+!/tcod-sys/libtcod/SDL*.dll
+!/tcod-sys/libtcod/dependencies/**
