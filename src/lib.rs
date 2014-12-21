@@ -3,7 +3,7 @@
 extern crate libc;
 extern crate "tcod-sys" as ffi;
 
-use libc::{c_int, c_float, uint8_t, c_void};
+use libc::{c_int, c_uint, c_float, uint8_t, c_void};
 
 pub use Console::Root as RootConsole;
 pub use ffi::TCOD_color_t as Color;
@@ -16,6 +16,15 @@ type c_bool = uint8_t;
 // in OffscreenConsole, but that doesn't seem to be possible now.
 pub struct LibtcodConsole {
     con: ffi::TCOD_console_t,
+}
+
+
+impl Drop for LibtcodConsole {
+    fn drop(&mut self) {
+        unsafe {
+            ffi::TCOD_console_delete(self.con);
+        }
+    }
 }
 
 pub enum Console {
@@ -174,16 +183,13 @@ impl Console {
         }
     }
 
-    pub fn set_custom_font(font_path: ::std::path::Path, flags: &[FontFlags],
+    pub fn set_custom_font(font_path: ::std::path::Path, flags: FontFlags,
                            nb_char_horizontal: int,
                            nb_char_vertical: int) {
         unsafe {
-            let c_flags = flags
-                          .iter()
-                          .fold(0, |a, b| a as c_int | *b as c_int);
             font_path.with_c_str( |path| {
                 ffi::TCOD_console_set_custom_font(
-                    path, c_flags, nb_char_horizontal as c_int,
+                    path, flags.bits() as c_int, nb_char_horizontal as c_int,
                     nb_char_vertical as c_int);
             });
         }
@@ -209,9 +215,9 @@ impl Console {
         }
     }
 
-    pub fn check_for_keypress(status: KeyPressFlag) -> Option<KeyState> {
+    pub fn check_for_keypress(status: KeyPressFlags) -> Option<KeyState> {
         let tcod_key = unsafe {
-            ffi::TCOD_console_check_for_keypress(status as c_int)
+            ffi::TCOD_console_check_for_keypress(status.bits() as c_int)
         };
         if tcod_key.vk == ffi::TCODK_NONE {
             return None;
@@ -248,17 +254,6 @@ impl Console {
         unsafe {
             title.with_c_str(
                 |c_title| { ffi::TCOD_console_set_window_title(c_title); } );
-        }
-    }
-}
-
-impl Drop for Console {
-    fn drop(&mut self) {
-        match *self {
-            Console::Root => (),
-            Console::Offscreen(LibtcodConsole{con}) => unsafe {
-                ffi::TCOD_console_delete(con);
-            }
         }
     }
 }
@@ -404,11 +399,11 @@ impl<'a> AStarPath<'a> {
         }
     }
 
-    pub fn walk<'a>(&'a mut self) -> AStarPathIterator<'a> {
+    pub fn walk<'b>(&'b mut self) -> AStarPathIterator<'b> {
         AStarPathIterator{tcod_path: self.tcod_path.ptr, recalculate: false}
     }
 
-    pub fn walk_recalculate<'a>(&'a mut self) -> AStarPathIterator<'a> {
+    pub fn walk_recalculate<'b>(&'b mut self) -> AStarPathIterator<'b> {
         AStarPathIterator{tcod_path: self.tcod_path.ptr, recalculate: true}
     }
 
@@ -551,7 +546,7 @@ impl<'a> DijkstraPath<'a> {
         }
     }
 
-    pub fn walk<'a>(&'a mut self) -> DijkstraPathIterator<'a> {
+    pub fn walk<'b>(&'b mut self) -> DijkstraPathIterator<'b> {
         DijkstraPathIterator{tcod_path: self.tcod_path.ptr}
     }
 
@@ -648,21 +643,24 @@ impl<'a> Iterator<(int, int)> for DijkstraPathIterator<'a> {
 
 
 #[repr(C)]
+#[deriving(Copy)]
 pub enum Renderer {
     GLSL = ffi::TCOD_RENDERER_GLSL as int,
     OpenGL = ffi::TCOD_RENDERER_OPENGL as int,
     SDL = ffi::TCOD_RENDERER_SDL as int,
 }
 
-#[repr(C)]
-pub enum FontFlags {
-    LayoutAsciiIncol = ffi::TCOD_FONT_LAYOUT_ASCII_INCOL as int,
-    LayoutAsciiInrow = ffi::TCOD_FONT_LAYOUT_ASCII_INROW as int,
-    TypeGreyscale = ffi::TCOD_FONT_TYPE_GREYSCALE as int,
-    LayoutTcod = ffi::TCOD_FONT_LAYOUT_TCOD as int,
+bitflags! {
+    flags FontFlags: c_uint {
+        const FONT_LAYOUT_ASCII_INCOL = ffi::TCOD_FONT_LAYOUT_ASCII_INCOL,
+        const FONT_LAYOUT_ASCII_INROW = ffi::TCOD_FONT_LAYOUT_ASCII_INROW,
+        const FONT_TYPE_GREYSCALE = ffi::TCOD_FONT_TYPE_GREYSCALE,
+        const FONT_LAYOUT_TCOD = ffi::TCOD_FONT_LAYOUT_TCOD,
+    }
 }
 
-#[deriving(PartialEq, FromPrimitive, Show)]
+
+#[deriving(Copy, PartialEq, FromPrimitive, Show)]
 #[repr(C)]
 pub enum KeyCode {
     NoKey,
@@ -736,13 +734,13 @@ pub enum KeyCode {
 }
 
 
-#[deriving(PartialEq, Show)]
+#[deriving(Copy, PartialEq, Show)]
 pub enum Key {
     Printable(char),
     Special(KeyCode),
 }
 
-#[deriving(PartialEq, Show)]
+#[deriving(Copy, PartialEq, Show)]
 pub struct KeyState {
     pub key: Key,
     pub pressed: bool,
@@ -753,19 +751,6 @@ pub struct KeyState {
     pub shift: bool,
 }
 
-// #[deriving(PartialEq, Clone, Show)]
-// #[repr(C)]
-// pub struct Color {
-//     pub r: uint8_t,
-//     pub g: uint8_t,
-//     pub b: uint8_t,
-// }
-
-// impl Color {
-//     pub fn new(red: u8, green: u8, blue: u8) -> Color {
-//         Color{r: red as uint8_t, g: green as uint8_t, b: blue as uint8_t}
-//     }
-// }
 
 pub mod colors {
     pub use ffi::TCOD_black as black;
@@ -968,6 +953,7 @@ pub mod colors {
 }
 
 #[repr(C)]
+#[deriving(Copy)]
 pub enum TextAlignment {
     Left = ffi::TCOD_LEFT as int,
     Right = ffi::TCOD_RIGHT as int,
@@ -976,6 +962,7 @@ pub enum TextAlignment {
 
 
 #[repr(C)]
+#[deriving(Copy)]
 pub enum BackgroundFlag {
     None = ffi::TCOD_BKGND_NONE as int,
     Set = ffi::TCOD_BKGND_SET as int,
@@ -1022,8 +1009,9 @@ pub mod system {
 }
 
 
-pub enum KeyPressFlag {
-    Pressed = 1,
-    Released = 2,
-    PressedOrReleased = 1 | 2,
+bitflags! {
+    flags KeyPressFlags: c_uint {
+        const KEY_PRESSED = ffi::TCOD_KEY_PRESSED,
+        const KEY_RELEASED = ffi::TCOD_KEY_RELEASED,
+    }
 }
